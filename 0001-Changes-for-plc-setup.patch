@@ -1,0 +1,142 @@
+From 318d9360c6e86d2bf7a4c002289701f8152a0c7d Mon Sep 17 00:00:00 2001
+From: Shobhit <shobhita@andrew.cmu.edu>
+Date: Mon, 7 Aug 2023 17:15:10 -0400
+Subject: [PATCH] Changes for plc setup
+
+---
+ easy_handeye/launch/calibrate.launch          | 12 +++++-----
+ easy_handeye/launch/publish.launch            |  2 +-
+ easy_handeye/launch/publish_plc.launch        | 15 ++++++++++++
+ easy_handeye/scripts/publish.py               | 24 ++++++++++++++++---
+ .../src/easy_handeye/handeye_sampler.py       |  2 +-
+ 5 files changed, 44 insertions(+), 11 deletions(-)
+ create mode 100644 easy_handeye/launch/publish_plc.launch
+
+diff --git a/easy_handeye/launch/calibrate.launch b/easy_handeye/launch/calibrate.launch
+index edd9c3c..dd3d821 100644
+--- a/easy_handeye/launch/calibrate.launch
++++ b/easy_handeye/launch/calibrate.launch
+@@ -2,14 +2,14 @@
+ <launch>
+ 
+     <!-- Setting calibration namespace -->
+-    <arg name="eye_on_hand" doc="if true, eye-on-hand instead of eye-on-base" />
++    <arg name="eye_on_hand" value="false" doc="if true, eye-on-hand instead of eye-on-base" />
+     <arg name="namespace_prefix" default="easy_handeye" doc="the prefix of the namespace the node will run in, and of the folder in which the result will be saved" />
+     <arg if="$(arg eye_on_hand)" name="namespace" value="$(arg namespace_prefix)_eye_on_hand" doc="the namespace the node will run in, and the folder in which the result will be saved" />
+     <arg unless="$(arg eye_on_hand)" name="namespace" value="$(arg namespace_prefix)_eye_on_base" doc="the namespace the node will run in, and the folder in which the result will be saved" />
+ 
+     <!-- Automatic robot movements -->
+     <arg name="freehand_robot_movement" default="false" doc="if false, the rqt plugin for the automatic robot motion with MoveIt! will be started" />
+-    <arg name="move_group_namespace" default="/"  doc="the namespace of move_group for the automatic robot motion with MoveIt!" />
++    <arg name="move_group_namespace" default="/creator"  doc="the namespace of move_group for the automatic robot motion with MoveIt!" />
+     <arg name="move_group" default="manipulator"  doc="the name of move_group for the automatic robot motion with MoveIt!" />
+ 
+     <arg name="translation_delta_meters" default="0.1" doc="the maximum movement that the robot should perform in the translation phase" />
+@@ -18,10 +18,10 @@
+     <arg name="robot_acceleration_scaling" default="0.2" doc="the maximum acceleration the robot should reach, as a factor of the acceleration declared in the joint_limits.yaml" />
+ 
+     <!-- The input reference frames -->
+-    <arg name="robot_base_frame" default="base_link" />
+-    <arg name="robot_effector_frame" default="tool0" />
+-    <arg name="tracking_base_frame" default="tracking_origin" />
+-    <arg name="tracking_marker_frame" default="tracking_target" />
++    <arg name="robot_base_frame" default="creator/base_link" />
++    <arg name="robot_effector_frame" default="creator/tool0" />
++    <arg name="tracking_base_frame" default="camera" />
++    <arg name="tracking_marker_frame" default="tag_280" />
+     
+     <!-- Publish dummy frames while calibrating -->
+     <arg name="publish_dummy" default="true" doc="if true, a dummy calibration will be published to keep all frames in a single tf tree, hence visualized in RViz" />
+diff --git a/easy_handeye/launch/publish.launch b/easy_handeye/launch/publish.launch
+index 90d60bd..c10d56d 100644
+--- a/easy_handeye/launch/publish.launch
++++ b/easy_handeye/launch/publish.launch
+@@ -1,6 +1,6 @@
+ <?xml version="1.0"?>
+ <launch>
+-    <arg name="eye_on_hand" doc="eye-on-hand instead of eye-on-base" />
++    <arg name="eye_on_hand" value="false" doc="eye-on-hand instead of eye-on-base" />
+     <arg name="namespace_prefix" default="easy_handeye" />
+     <arg if="$(arg eye_on_hand)" name="namespace" value="$(arg namespace_prefix)_eye_on_hand" />
+     <arg unless="$(arg eye_on_hand)" name="namespace" value="$(arg namespace_prefix)_eye_on_base" />
+diff --git a/easy_handeye/launch/publish_plc.launch b/easy_handeye/launch/publish_plc.launch
+new file mode 100644
+index 0000000..47d837e
+--- /dev/null
++++ b/easy_handeye/launch/publish_plc.launch
+@@ -0,0 +1,15 @@
++<?xml version="1.0"?>
++<launch>
++    <arg name="eye_on_hand" value="false" doc="eye-on-hand instead of eye-on-base" />
++    <arg name="inverse" default="false"/>
++    <arg name="calibration_file" default=""/>
++    <arg name="robot_base_frame" default=""/>
++    <arg name="tracking_base_frame" default=""/>
++    
++    <!--publish hand-eye calibration-->
++    <param name="inverse" value="$(arg inverse)" />
++    <param name="calibration_file" value="$(arg calibration_file)" />
++    <param name="robot_base_frame" value="$(arg robot_base_frame)"/>
++    <param name="tracking_base_frame" value="$(arg tracking_base_frame)"/>
++    <node name="$(anon handeye_publisher)" pkg="easy_handeye" type="publish.py" output="screen"/>
++</launch>
+diff --git a/easy_handeye/scripts/publish.py b/easy_handeye/scripts/publish.py
+index 3508a74..4ba613d 100755
+--- a/easy_handeye/scripts/publish.py
++++ b/easy_handeye/scripts/publish.py
+@@ -2,6 +2,8 @@
+ 
+ import rospy
+ import tf2_ros
++from tf import transformations as t
++from geometry_msgs.msg import Vector3, Quaternion
+ import geometry_msgs.msg
+ from easy_handeye.handeye_calibration import HandeyeCalibration
+ 
+@@ -43,10 +45,26 @@ broadcaster = tf2_ros.StaticTransformBroadcaster()
+ static_transformStamped = geometry_msgs.msg.TransformStamped()
+ 
+ static_transformStamped.header.stamp = rospy.Time.now()
+-static_transformStamped.header.frame_id = orig
+-static_transformStamped.child_frame_id = dest
+ 
+-static_transformStamped.transform = calib.transformation.transform
++if not inverse:
++    static_transformStamped.header.frame_id = orig
++    static_transformStamped.child_frame_id = dest
++    static_transformStamped.transform = calib.transformation.transform
++
++else:
++    # invert transform
++    transform = calib.transformation.transform
++    rot_matrix = t.quaternion_matrix([transform.rotation.x,
++        transform.rotation.y, transform.rotation.z, transform.rotation.w])
++    translation = [transform.translation.x, transform.translation.y, transform.translation.z]
++    transform_matrix = t.concatenate_matrices(t.translation_matrix(translation), rot_matrix)
++    transform_matrix = t.inverse_matrix(transform_matrix)
++
++    # load transform
++    static_transformStamped.header.frame_id = dest
++    static_transformStamped.child_frame_id = orig
++    static_transformStamped.transform.translation = Vector3(*t.translation_from_matrix(transform_matrix))
++    static_transformStamped.transform.rotation = Quaternion(*t.quaternion_from_matrix(transform_matrix))
+ 
+ broadcaster.sendTransform(static_transformStamped)
+ rospy.spin()
+diff --git a/easy_handeye/src/easy_handeye/handeye_sampler.py b/easy_handeye/src/easy_handeye/handeye_sampler.py
+index eeb7eca..987f51d 100644
+--- a/easy_handeye/src/easy_handeye/handeye_sampler.py
++++ b/easy_handeye/src/easy_handeye/handeye_sampler.py
+@@ -62,7 +62,7 @@ class HandeyeSampler(object):
+         :rtype: dict[str, ((float, float, float), (float, float, float, float))]
+         """
+         if time is None:
+-            time = Time.now()
++            time = Time(0)
+ 
+         # here we trick the library (it is actually made for eye_on_hand only). Trust me, I'm an engineer
+         if self.handeye_parameters.eye_on_hand:
+-- 
+2.25.1
+

@@ -1,0 +1,67 @@
+<launch>
+
+    <node pkg="tf" type="static_transform_publisher" name="red_curtain_helper_tf_broadcaster"
+    args="0.066352 -0.007833  0.011068 0.000384 0.006316 0.001334 0.999979 red_camera redversion_ir_optical 100" />
+
+    <node pkg="tf" type="static_transform_publisher" name="blue_curtain_helper_tf_broadcaster"
+    args="-6.6186077e-02 8.0012121e-03 -1.1910795e-02 -0.0063155 -0.0013342 0.9999791 blue_camera blueversion_ir_optical 100" />
+
+    <!-- Rough estimate obtained manually, but good enough for visualization -->
+    <node pkg="tf" type="static_transform_publisher" name="blue_red_tf_broadcaster"
+    args="-0.1 -6 -2.1 0 0.2588 0.9659 0 blue_camera red_camera 1000" />
+    
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find lc_utils)/demo.rviz"/>
+    
+    <group ns="architect">
+    	<node name="joint_positions" pkg="lc_utils" type="robot_joint_lookup.py" output="screen">
+            <param name="arm_id" value="architect"/>
+    	</node>
+
+    	<include file="$(find easy_handeye)/launch/publish_plc.launch">
+      	    <arg name="calibration_file" value="/home/mfi/.ros/easy_handeye/easy_handeye_eye_on_base_architect.yaml"/>
+            <arg name="inverse" value="true"/>
+            <arg name="robot_base_frame" value="architect/base_link"/>
+            <arg name="tracking_base_frame" value="red_camera"/>
+    	</include>
+    </group>
+
+    <group ns="builder">
+    	<node name="joint_positions" pkg="lc_utils" type="robot_joint_lookup.py" output="screen">
+            <param name="arm_id" value="builder"/>
+    	</node>
+
+    	<include file="$(find easy_handeye)/launch/publish_plc.launch">
+      	    <arg name="calibration_file" value="/home/mfi/.ros/easy_handeye/easy_handeye_eye_on_base_builder_new.yaml"/>
+            <arg name="inverse" value="true"/>
+            <arg name="robot_base_frame" value="builder/base_link"/>
+            <arg name="tracking_base_frame" value="blue_camera"/>
+    	</include>
+    </group>
+
+    <group ns="creator">
+    	<node name="joint_positions" pkg="lc_utils" type="robot_joint_lookup.py" output="screen">
+            <param name="arm_id" value="creator"/>
+    	</node>
+
+    	<include file="$(find easy_handeye)/launch/publish_plc.launch">
+      	    <arg name="calibration_file" value="/home/mfi/.ros/easy_handeye/easy_handeye_eye_on_base_creator_new.yaml"/>
+            <arg name="inverse" value="true"/>
+            <arg name="robot_base_frame" value="creator/base_link"/>
+            <arg name="tracking_base_frame" value="blue_camera"/>
+    	</include>
+    </group>
+
+    <group ns="developer">
+    	<node name="joint_positions" pkg="lc_utils" type="robot_joint_lookup.py" output="screen">
+            <param name="arm_id" value="developer"/>
+    	</node>
+
+    	<include file="$(find easy_handeye)/launch/publish_plc.launch">
+      	    <arg name="calibration_file" value="/home/mfi/.ros/easy_handeye/easy_handeye_eye_on_base_developer.yaml"/>
+            <arg name="inverse" value="true"/>
+            <arg name="robot_base_frame" value="developer/base_link"/>
+            <arg name="tracking_base_frame" value="red_camera"/>
+    	</include>
+    </group>
+
+</launch>
