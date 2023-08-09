@@ -6,7 +6,7 @@
  
 
 ## Testbed demo
-*as of 08/07.2023*
+*as prepared for 07.31.2023*
 
 All four robots and two light curtain sensors must be powered on and connected to the network. Make sure the lc-rpi devices are in sync (`sudo ntpdate 192.168.1.1`)
 
